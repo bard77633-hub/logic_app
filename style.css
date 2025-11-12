@@ -97,8 +97,9 @@ body, html {
     stroke-width: 3;
     fill: none;
 }
+/* === 変更点: ワイヤーのONの色を赤系に === */
 .wire.on { /* ONの状態のワイヤー */
-    stroke: #00ff00;
+    stroke: #e74c3c; 
     stroke-width: 4;
 }
 .wire-dragging { /* ドラッグ中の仮線 */
@@ -138,7 +139,6 @@ body, html {
     border-radius: 50%;
     z-index: 25;
     cursor: crosshair;
-    /* pointer-events: auto; SVGが透けていても反応させる */
 }
 .terminal.out {
     right: -10px;
@@ -157,14 +157,17 @@ body, html {
 }
 
 /* --- 各コンポーネントのスタイル --- */
-/* INPUT (スイッチ) */
+
+/* === 変更点: INPUT (スイッチ) === */
 .component.INPUT {
     width: 60px;
-    background-color: #f1c40f;
+    background-color: #bdc3c7; /* OFF (グレー) */
+    color: #333;
     cursor: pointer;
 }
 .component.INPUT.on {
-    background-color: #f39c12;
+    background-color: #e74c3c; /* ON (赤) */
+    box-shadow: 0 0 10px #e74c3c;
     color: #fff;
 }
 .component.INPUT .terminal.in-0,
@@ -172,16 +175,16 @@ body, html {
     display: none; /* INPUTに入力端子はない */
 }
 
-/* OUTPUT (LED) */
+/* === 変更点: OUTPUT (LED) === */
 .component.OUTPUT {
     width: 60px;
-    background-color: #bdc3c7;
+    background-color: #bdc3c7; /* OFF (グレー) */
     border-radius: 50%;
     height: 60px;
 }
-.component.OUTPUT.on { /* ONのLED */
-    background-color: #2ecc71;
-    box-shadow: 0 0 15px #2ecc71;
+.component.OUTPUT.on { /* ON (赤) */
+    background-color: #e74c3c;
+    box-shadow: 0 0 15px #e74c3c;
 }
 .component.OUTPUT .terminal.out {
     display: none; /* OUTPUTに出力端子はない */
@@ -200,7 +203,7 @@ body, html {
     border-radius: 5px 25px 25px 5px; /* D型 */
 }
 
-/* ORゲート (D型 + 湾曲) */
+/* === 変更点: ORゲート (湾曲を強調) === */
 .component.OR {
     border-radius: 5px 25px 25px 5px;
     border-left: none; /* 左の線を消す */
@@ -208,32 +211,40 @@ body, html {
 .component.OR::before { /* 左側の湾曲を描画 */
     content: '';
     position: absolute;
-    left: -2px;
+    left: -8px; /* 変更: 湾曲を左にずらす */
     top: -2px;
     width: 40px;
     height: 50px;
     border: 2px solid #333;
     border-right: none;
-    border-radius: 25px 0 0 25px;
+    border-radius: 30px 0 0 30px; /* 変更: 湾曲を強く */
+}
+/* 変更: ORの端子を湾曲に合わせる */
+.component.OR .terminal.in-0 {
+    left: -14px;
+}
+.component.OR .terminal.in-1 {
+    left: -14px;
 }
 
 
-/* NOTゲート (三角) */
+/* === 変更点: NOTゲート (三角とラベル) === */
 .component.NOT {
     width: 0;
     height: 0;
     background-color: transparent;
     border-style: solid;
     border-width: 25px 0 25px 40px; /* 三角形 */
-    border-color: transparent transparent transparent #333;
+    border-color: transparent transparent transparent #ccc; /* 変更: 三角を薄い色に */
     border-radius: 0;
 }
 .component.NOT .label {
     position: absolute;
-    left: -35px;
-    top: -9px;
-    color: #fff;
+    left: -35px; /* 変更: 三角の中央に配置 */
+    top: -9px;  /* 変更: 三角の中央に配置 */
+    color: #333; /* 変更: 黒文字に */
     z-index: 1;
+    font-size: 12px;
 }
 .component.NOT .terminal.in-0 {
     left: -42px;
