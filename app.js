@@ -25,7 +25,6 @@
         bindEvents();
         updateCanvasOffset();
         createInitialAndCircuit();
-        // 修正: ツールボタンの表示を更新し、POINTERをアクティブにする
         setupToolButtons();
         document.getElementById('tool-pointer').click();
         console.log("論理回路シミュレータが初期化されました。");
@@ -33,13 +32,10 @@
     
     // --- ツールボタンのセットアップ ---
     function setupToolButtons() {
-        // WIREツールボタンを非表示にし、POINTERにクラスを統合する処理は、
-        // 実際にはHTML/CSSの修正が必要だが、JS側でロジックを統合する。
-        // （ここでは、HTMLのIDが'tool-pointer'と'tool-delete'のボタンのみが有効と想定）
         toolButtons.forEach(button => {
             const tool = button.dataset.tool;
             if (tool === 'WIRE') {
-                button.style.display = 'none'; // UIから結線ボタンを隠す（HTML修正推奨）
+                button.style.display = 'none'; 
             }
         });
     }
@@ -76,7 +72,6 @@
     // --- ツール切り替え ---
     function selectTool(e) {
         const selectedTool = e.currentTarget.dataset.tool;
-        // WIREツールは非表示にしたので、選択させない
         if (selectedTool && selectedTool !== 'WIRE') {
             state.currentTool = selectedTool;
             
@@ -133,6 +128,34 @@
             y: y - state.canvasOffset.top
         };
     }
+    
+    // --- 🎯 新規: 距離計算ヘルパー ---
+    function getDistance(x1, y1, x2, y2) {
+        return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    }
+
+    // --- 🎯 新規: 最も近いターミナル要素を見つける ---
+    function findClosestInputTerminal(endCoords) {
+        const terminals = Array.from(canvas.querySelectorAll('.terminal'));
+        let closestTerminal = null;
+        let minDistance = Infinity;
+        const searchRadius = 30; // 検索半径 30px
+
+        for (const terminal of terminals) {
+            // 入力ターミナルのみを対象とする
+            if (!terminal.dataset.terminalId.startsWith('in-')) continue;
+            
+            const termCoords = getTerminalCoords(terminal);
+            const distance = getDistance(endCoords.x, endCoords.y, termCoords.x, termCoords.y);
+
+            if (distance < searchRadius && distance < minDistance) {
+                minDistance = distance;
+                closestTerminal = terminal;
+            }
+        }
+        return closestTerminal;
+    }
+
 
     // --- 操作開始 (MouseDown / TouchStart) ---
     function handleInteractionStart(e) {
@@ -146,7 +169,7 @@
         // ターミナル操作を優先
         if (targetTerminal) {
             switch (state.currentTool) {
-                case 'POINTER': // 修正: POINTERに結線ロジックを統合
+                case 'POINTER': 
                     startWire(targetTerminal);
                     break;
                 case 'DELETE':
@@ -215,7 +238,7 @@
         }
     }
 
-    // --- 操作終了 (MouseUp / TouchEnd) ---
+    // --- 🚀 修正: 操作終了 (MouseUp / TouchEnd) ---
     function handleInteractionEnd(e) {
         if (state.dragState) {
             state.dragState = null;
@@ -223,11 +246,9 @@
 
         if (state.wireDrag) {
             const coords = getCoords(e);
-            const endTarget = document.elementFromPoint(
-                coords.x + state.canvasOffset.left, 
-                coords.y + state.canvasOffset.top
-            );
-            const endTerminal = endTarget ? endTarget.closest('.terminal') : null;
+            
+            // 🎯 修正: カーソル位置から最も近い入力ターミナルを検索
+            const endTerminal = findClosestInputTerminal(coords);
 
             if (endTerminal) {
                 createWire(endTerminal);
@@ -263,7 +284,7 @@
             type: type,
             x: x,
             y: y,
-            value: (type === 'INPUT') ? 0 : null, // INPUTはデフォルトOFF
+            value: (type === 'INPUT') ? 0 : null,
             element: element
         };
 
@@ -283,7 +304,6 @@
         const andGate = createComponent('AND', 220 + x_offset, 160 + y_offset);
         const output = createComponent('OUTPUT', 380 + x_offset, 160 + y_offset);
 
-        // DOM反映後の処理
         setTimeout(() => {
             createWireFromIDs(input1.id, 'out-0', andGate.id, 'in-0');
             createWireFromIDs(input2.id, 'out-0', andGate.id, 'in-1');
