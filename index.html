@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>論理回路シミュレータ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="palette">
+        <h3>ツール</h3>
+        <button id="tool-pointer" class="tool-button active" data-tool="POINTER">選択/移動</button>
+        <button id="tool-wire" class="tool-button" data-tool="WIRE">結線</button>
+        <button id="tool-delete" class="tool-button" data-tool="DELETE">削除</button>
+        <h3>コンポーネント</h3>
+        <button class="component-button" data-type="INPUT">INPUT</button>
+        <button class="component-button" data-type="OUTPUT">OUTPUT</button>
+        <button class="component-button" data-type="AND">AND</button>
+        <button class="component-button" data-type="OR">OR</button>
+        <button class="component-button" data-type="NOT">NOT</button>
+        <button id="reset-button">全リセット</button>
+    </div>
+
+    <div id="workspace">
+        <div id="canvas"></div>
+        <svg id="wire-layer"></svg>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
