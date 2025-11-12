@@ -62,11 +62,9 @@
         if (selectedTool) {
             state.currentTool = selectedTool;
             
-            // 既存の選択状態を解除
             toolButtons.forEach(btn => btn.classList.remove('active'));
             componentButtons.forEach(btn => btn.classList.remove('active'));
             
-            // クリックしたボタンをアクティブに
             e.currentTarget.classList.add('active');
         }
     }
@@ -76,11 +74,9 @@
         const type = e.currentTarget.dataset.type;
         state.currentTool = `ADD_${type}`;
         
-        // 既存の選択状態を解除
         toolButtons.forEach(btn => btn.classList.remove('active'));
         componentButtons.forEach(btn => btn.classList.remove('active'));
         
-        // クリックしたボタンをアクティブに
         e.currentTarget.classList.add('active');
     }
 
@@ -111,7 +107,6 @@
             x = e.clientX;
             y = e.clientY;
         }
-        // キャンバスの左上隅からの相対座標に変換
         return {
             x: x - state.canvasOffset.left,
             y: y - state.canvasOffset.top
@@ -124,7 +119,6 @@
         const coords = getCoords(e);
         const target = e.target;
         
-        // === 変更点: クリック対象のコンポーネントを正しく取得 ===
         const targetComponent = target.closest('.component');
         const targetTerminal = target.closest('.terminal');
 
@@ -132,7 +126,6 @@
         switch (state.currentTool) {
             case 'POINTER':
                 if (targetTerminal) {
-                    // 端子をクリックしてもドラッグしない (結線ツールと誤認しないように)
                     return;
                 }
                 if (targetComponent) {
@@ -148,27 +141,22 @@
             
             case 'WIRE':
                 if (targetTerminal) {
-                    // 結線開始
                     startWire(targetTerminal);
                 }
                 break;
 
             case 'DELETE':
                 if (targetTerminal) {
-                    // 端子に接続されているワイヤーを削除
                     deleteWiresConnectedTo(targetTerminal);
                 } else if (targetComponent) {
-                    // コンポーネント削除
                     deleteComponent(targetComponent.dataset.id);
                 }
                 break;
 
             default:
-                // コンポーネント追加モード (ADD_TYPE)
                 if (state.currentTool.startsWith('ADD_')) {
                     const type = state.currentTool.split('_')[1];
                     createComponent(type, coords.x, coords.y);
-                    // 追加後は選択ツールに戻る
                     document.getElementById('tool-pointer').click();
                 }
                 break;
@@ -177,16 +165,19 @@
 
     // --- 操作中 (MouseMove / TouchMove) ---
     function handleInteractionMove(e) {
-        if (state.dragState) {
+        // === 修正点 (1/3): ドラッグ中・結線中はスクロールを禁止 ===
+        // INPUTのクリック操作がmoveイベントでキャンセルされるのを防ぐ
+        if (state.dragState || state.wireDrag) {
             e.preventDefault();
+        }
+
+        if (state.dragState) {
             const coords = getCoords(e);
             const comp = state.dragState.component;
             
-            // 新しい位置を計算
             let newX = coords.x - state.dragState.offsetX;
             let newY = coords.y - state.dragState.offsetY;
             
-            // グリッドにスナップ (20pxごと)
             newX = Math.round(newX / 20) * 20;
             newY = Math.round(newY / 20) * 20;
 
@@ -194,14 +185,11 @@
             comp.x = newX;
             comp.y = newY;
 
-            // 接続されているワイヤーも更新
             updateWires(comp.id);
         }
 
         if (state.wireDrag) {
-            e.preventDefault();
             const coords = getCoords(e);
-            // 仮線の終点を更新
             state.wireDrag.tempLine.setAttribute('x2', coords.x);
             state.wireDrag.tempLine.setAttribute('y2', coords.y);
         }
@@ -209,16 +197,11 @@
 
     // --- 操作終了 (MouseUp / TouchEnd) ---
     function handleInteractionEnd(e) {
-        // ドラッグ終了
         if (state.dragState) {
             state.dragState = null;
         }
 
-        // 結線終了
         if (state.wireDrag) {
-            // === 変更点: イベント終了時のターゲットを正しく取得 ===
-            // mouseup/touchendではe.targetが期待通りに動作しないことがある
-            // 代わりに、その瞬間のポインタ位置にある要素をチェックする
             const coords = getCoords(e);
             const endTarget = document.elementFromPoint(
                 coords.x + state.canvasOffset.left, 
@@ -227,11 +210,9 @@
             const endTerminal = endTarget ? endTarget.closest('.terminal') : null;
 
             if (endTerminal) {
-                // 端子の上で終了した場合、ワイヤーを作成
                 createWire(endTerminal);
             }
             
-            // 仮線を削除
             wireLayer.removeChild(state.wireDrag.tempLine);
             state.wireDrag = null;
         }
@@ -245,19 +226,16 @@
         element.dataset.id = id;
         element.dataset.type = type;
 
-        // グリッドにスナップ
         x = Math.round(x / 20) * 20;
         y = Math.round(y / 20) * 20;
         
         element.style.transform = `translate(${x}px, ${y}px)`;
 
-        // ラベル
         const label = document.createElement('span');
         label.classList.add('label');
         label.textContent = type;
         element.appendChild(label);
         
-        // 端子 (Terminal) の追加
         addTerminals(element, type);
 
         const component = {
@@ -301,7 +279,6 @@
         const id = parseInt(element.dataset.id);
         const component = findComponent(id);
         
-        // クリック位置とコンポーネント左上のオフセットを計算
         const offsetX = coords.x - component.x;
         const offsetY = coords.y - component.y;
 
@@ -316,10 +293,6 @@
             component.value = (component.value === 0) ? 1 : 0; // 0と1をトグル
             element.classList.toggle('on', component.value === 1);
             
-            // === 変更点: ラベルのテキストは変更しない ===
-            // element.querySelector('.label').textContent = `INPUT: ${component.value}`; // この行を削除
-            
-            // シミュレーション実行
             simulate();
         }
     }
@@ -327,18 +300,14 @@
     // --- コンポーネント削除 ---
     function deleteComponent(id) {
         id = parseInt(id);
-        // 1. コンポーネントをDOMから削除
         const comp = findComponent(id);
         if (comp) canvas.removeChild(comp.element);
 
-        // 2. state.componentsから削除
         state.components = state.components.filter(c => c.id !== id);
 
-        // 3. 関連するワイヤーを削除
         const wiresToRemove = state.wires.filter(w => w.fromId === id || w.toId === id);
         wiresToRemove.forEach(w => deleteWire(w.id));
         
-        // 再シミュレーション
         simulate();
     }
     
@@ -347,28 +316,24 @@
         id = parseInt(id);
         const wire = findWire(id);
         if (wire) {
-            // DOMから削除
-            if (wire.element && wire.element.parentNode) { // 存在確認
+            if (wire.element && wire.element.parentNode) {
                 wireLayer.removeChild(wire.element);
             }
-            // state.wiresから削除
             state.wires = state.wires.filter(w => w.id !== id);
         }
     }
     
     function deleteWiresConnectedTo(terminalElement) {
         const componentElement = terminalElement.closest('.component');
-        if (!componentElement) return; // コンポーネントが見つからない場合は終了
+        if (!componentElement) return;
         
         const compId = parseInt(componentElement.dataset.id);
         const terminalId = terminalElement.dataset.terminalId;
 
         let wiresToRemove;
         if (terminalId.startsWith('in-')) {
-            // 入力端子に接続されているワイヤー
             wiresToRemove = state.wires.filter(w => w.toId === compId && w.toTerminal === terminalId);
         } else {
-            // 出力端子に接続されているワイヤー
             wiresToRemove = state.wires.filter(w => w.fromId === compId && w.fromTerminal === terminalId);
         }
         
@@ -384,22 +349,22 @@
         const fromId = parseInt(componentElement.dataset.id);
         const fromTerminal = terminalElement.dataset.terminalId;
         
-        // 出力端子からのみ結線開始できる
         if (!fromTerminal.startsWith('out-')) return;
         
         const coords = getTerminalCoords(terminalElement);
         
-        // 仮線(SVG)の作成
         const tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         tempLine.setAttribute('x1', coords.x);
         tempLine.setAttribute('y1', coords.y);
-        tempLine.setAttribute('x2', coords.x); // 最初は同じ位置
+        tempLine.setAttribute('x2', coords.x);
         tempLine.setAttribute('y2', coords.y);
         tempLine.classList.add('wire-dragging');
         wireLayer.appendChild(tempLine);
 
         state.wireDrag = { fromId, fromTerminal, tempLine };
     }
+
+
 
     // --- 結線作成 ---
     function createWire(toTerminalElement) {
@@ -411,13 +376,9 @@
         
         const { fromId, fromTerminal } = state.wireDrag;
 
-        // 入力端子にのみ接続できる
         if (!toTerminal.startsWith('in-')) return;
-        
-        // 自分自身には接続できない
         if (fromId === toId) return;
         
-        // 既に入力端子に接続がある場合は、古いワイヤーを削除
         const existingWire = state.wires.find(w => w.toId === toId && w.toTerminal === toTerminal);
         if (existingWire) {
             deleteWire(existingWire.id);
@@ -440,16 +401,13 @@
         state.wires.push(wire);
         wireLayer.appendChild(line);
         
-        // ワイヤーの位置を更新
         updateWireElement(wire);
         
-        // シミュレーション実行
         simulate();
     }
     
     // --- ワイヤーの描画更新 ---
     function updateWires(componentId) {
-        // 指定されたコンポーネントIDに関連するすべてのワイヤーを更新
         state.wires.forEach(wire => {
             if (wire.fromId === componentId || wire.toId === componentId) {
                 updateWireElement(wire);
@@ -498,24 +456,22 @@
     // --- 🚀 シミュレーションロジック 🚀 ---
     // -------------------------------------
     function simulate() {
-        const MAX_ITERATIONS = 50; // 無限ループ防止
+        const MAX_ITERATIONS = 50; 
         let iterations = 0;
         let changed = true;
         
-        // 1. INPUT以外の全コンポーネントの値をリセット
         state.components.forEach(comp => {
             if (comp.type !== 'INPUT') {
                 comp.value = null; // 未計算状態
             }
         });
 
-        // 2. 値が安定するまで計算を繰り返す
         while (changed && iterations < MAX_ITERATIONS) {
             changed = false;
             iterations++;
 
             state.components.forEach(comp => {
-                if (comp.type === 'INPUT') return; // INPUTは計算しない
+                if (comp.type === 'INPUT') return;
 
                 const newValue = calculateComponentValue(comp);
                 
@@ -530,7 +486,6 @@
             console.warn("シミュレーションが安定しませんでした。回路にループがある可能性があります。");
         }
 
-        // 3. 計算結果をDOM（見た目）に反映
         updateDOM();
     }
     
@@ -539,19 +494,36 @@
         // 入力値を取得
         const inputs = getComponentInputs(comp);
         
+        // === 修正点 (2/3): 入力が null (未接続・未計算) の場合の処理 ===
         switch (comp.type) {
             case 'AND':
-                // 両方の入力が1なら1、そうでなければ0。未接続(null)は0として扱う
+                // 入力が一つでも null なら、出力も null
+                if (inputs['in-0'] === null || inputs['in-1'] === null) {
+                    return null;
+                }
                 return (inputs['in-0'] === 1 && inputs['in-1'] === 1) ? 1 : 0;
+            
             case 'OR':
-                // どちらかの入力が1なら1、そうでなければ0
+                // 入力が一つでも null なら、出力も null
+                if (inputs['in-0'] === null || inputs['in-1'] === null) {
+                    return null;
+                }
                 return (inputs['in-0'] === 1 || inputs['in-1'] === 1) ? 1 : 0;
+            
             case 'NOT':
-                // 入力が1なら0、0なら1
+                // 入力が null なら、出力も null
+                if (inputs['in-0'] === null) {
+                    return null;
+                }
                 return (inputs['in-0'] === 1) ? 0 : 1;
+            
             case 'OUTPUT':
-                // 入力をそのまま出力
+                // 入力が null なら、出力も null (0ではない)
+                if (inputs['in-0'] === null) {
+                    return null;
+                }
                 return inputs['in-0'];
+            
             default:
                 return null;
         }
@@ -564,37 +536,35 @@
             'in-1': null
         };
 
-        // このコンポーネント(comp)に接続されているワイヤーを探す
         const inputWires = state.wires.filter(w => w.toId === comp.id);
 
         inputWires.forEach(wire => {
-            // ワイヤーの入力元コンポーネントを探す
             const sourceComponent = findComponent(wire.fromId);
             if (sourceComponent) {
-                // 入力端子ID (in-0 or in-1) に、入力元コンポーネントの値を設定
                 inputs[wire.toTerminal] = sourceComponent.value;
             }
         });
 
-        // 接続されていない入力は 0 (OFF) として扱う
-        if (inputs['in-0'] === null) inputs['in-0'] = 0;
-        if (inputs['in-1'] === null) inputs['in-1'] = 0;
+        // === 修正点 (3/3): 未接続(null)を 0 に変換する処理を削除 ===
+        // これがNOT回路が未接続でONになる原因だった
         
         return inputs;
     }
 
     // --- シミュレーション結果をDOMに反映 ---
     function updateDOM() {
-        // 1. コンポーネント (OUTPUT) のON/OFF
+        // コンポーネント (OUTPUT) のON/OFF
         state.components.forEach(comp => {
             if (comp.type === 'OUTPUT') {
+                // comp.value が 1 の時だけ 'on' になる (null や 0 では 'on' にならない)
                 comp.element.classList.toggle('on', comp.value === 1);
             }
         });
 
-        // 2. ワイヤーのON/OFF
+        // ワイヤーのON/OFF
         state.wires.forEach(wire => {
             const sourceComponent = findComponent(wire.fromId);
+            // 接続元の value が 1 の時だけ 'on' になる
             if (sourceComponent && sourceComponent.value === 1) {
                 wire.element.classList.add('on');
             } else {
