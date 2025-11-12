@@ -13,7 +13,7 @@
     let state = {
         components: [], // { id, type, x, y, value, element }
         wires: [],      // { id, fromId, fromTerminal, toId, toTerminal, element }
-        currentTool: 'POINTER', // POINTER, WIRE, DELETE
+        currentTool: 'POINTER', // POINTER, DELETE
         nextId: 0,
         wireDrag: null,   // { fromId, fromTerminal, fromElement, tempLine }
         dragState: null,  // { component, offsetX, offsetY }
@@ -24,9 +24,24 @@
     function initialize() {
         bindEvents();
         updateCanvasOffset();
-        createInitialAndCircuit(); // 🚀 初期AND回路の作成
-        document.getElementById('tool-pointer').click(); // POINTERをアクティブにする
+        createInitialAndCircuit();
+        // 修正: ツールボタンの表示を更新し、POINTERをアクティブにする
+        setupToolButtons();
+        document.getElementById('tool-pointer').click();
         console.log("論理回路シミュレータが初期化されました。");
+    }
+    
+    // --- ツールボタンのセットアップ ---
+    function setupToolButtons() {
+        // WIREツールボタンを非表示にし、POINTERにクラスを統合する処理は、
+        // 実際にはHTML/CSSの修正が必要だが、JS側でロジックを統合する。
+        // （ここでは、HTMLのIDが'tool-pointer'と'tool-delete'のボタンのみが有効と想定）
+        toolButtons.forEach(button => {
+            const tool = button.dataset.tool;
+            if (tool === 'WIRE') {
+                button.style.display = 'none'; // UIから結線ボタンを隠す（HTML修正推奨）
+            }
+        });
     }
 
     // --- イベントバインディング ---
@@ -61,7 +76,8 @@
     // --- ツール切り替え ---
     function selectTool(e) {
         const selectedTool = e.currentTarget.dataset.tool;
-        if (selectedTool) {
+        // WIREツールは非表示にしたので、選択させない
+        if (selectedTool && selectedTool !== 'WIRE') {
             state.currentTool = selectedTool;
             
             toolButtons.forEach(btn => btn.classList.remove('active'));
@@ -90,7 +106,7 @@
             state.nextId = 0;
             canvas.innerHTML = '';
             wireLayer.innerHTML = '';
-            // リセット後、初期回路を再作成
+            
             createInitialAndCircuit();
             document.getElementById('tool-pointer').click();
         }
@@ -105,10 +121,10 @@
     // --- 座標取得ユーティリティ ---
     function getCoords(e) {
         let x, y;
-        if (e.changedTouches) { // タッチイベント
+        if (e.changedTouches) {
             x = e.changedTouches[0].clientX;
             y = e.changedTouches[0].clientY;
-        } else { // マウスイベント
+        } else {
             x = e.clientX;
             y = e.clientY;
         }
@@ -130,11 +146,7 @@
         // ターミナル操作を優先
         if (targetTerminal) {
             switch (state.currentTool) {
-                case 'POINTER':
-                    // POINTERモードでもターミナルをクリックしたら結線開始
-                    startWire(targetTerminal);
-                    break;
-                case 'WIRE':
+                case 'POINTER': // 修正: POINTERに結線ロジックを統合
                     startWire(targetTerminal);
                     break;
                 case 'DELETE':
@@ -158,9 +170,6 @@
                     break;
                 case 'DELETE':
                     deleteComponent(targetComponent.dataset.id);
-                    break;
-                case 'WIRE':
-                    // WIREモードでコンポーネント本体をクリックした場合は何もしない
                     break;
             }
             return;
@@ -261,12 +270,11 @@
         state.components.push(component);
         canvas.appendChild(element);
         
-        return component; // 👈 初期配置用にコンポーネントオブジェクトを返す
+        return component;
     }
     
     // --- 初期AND回路の作成 ---
     function createInitialAndCircuit() {
-        // グリッドに合わせた座標
         const x_offset = 20; 
         const y_offset = 20;
 
@@ -275,12 +283,13 @@
         const andGate = createComponent('AND', 220 + x_offset, 160 + y_offset);
         const output = createComponent('OUTPUT', 380 + x_offset, 160 + y_offset);
 
-        // 結線
-        createWireFromIDs(input1.id, 'out-0', andGate.id, 'in-0');
-        createWireFromIDs(input2.id, 'out-0', andGate.id, 'in-1');
-        createWireFromIDs(andGate.id, 'out-0', output.id, 'in-0');
-
-        simulate();
+        // DOM反映後の処理
+        setTimeout(() => {
+            createWireFromIDs(input1.id, 'out-0', andGate.id, 'in-0');
+            createWireFromIDs(input2.id, 'out-0', andGate.id, 'in-1');
+            createWireFromIDs(andGate.id, 'out-0', output.id, 'in-0');
+            simulate();
+        }, 0); 
     }
     
     // --- IDベースの結線作成 (初期配置用) ---
@@ -302,7 +311,7 @@
         state.wires.push(wire);
         wireLayer.appendChild(line);
         
-        updateWireElement(wire); // 初期座標を設定
+        updateWireElement(wire);
         return wire;
     }
 
@@ -346,7 +355,7 @@
         const id = parseInt(element.dataset.id);
         const component = findComponent(id);
         if (component && component.type === 'INPUT') {
-            component.value = (component.value === 0) ? 1 : 0; // 0と1をトグル
+            component.value = (component.value === 0) ? 1 : 0;
             element.classList.toggle('on', component.value === 1);
             
             simulate();
@@ -488,13 +497,15 @@
                 wire.element.setAttribute('x2', endCoords.x);
                 wire.element.setAttribute('y2', endCoords.y);
                 
-                // ワイヤーの色をシミュレーション結果に合わせて更新
                 const sourceValue = fromComp.value;
                 if (sourceValue === 1) {
                     wire.element.classList.add('on');
                 } else {
                     wire.element.classList.remove('on');
                 }
+            } else {
+                 wire.element.remove();
+                 state.wires = state.wires.filter(w => w.id !== wire.id);
             }
         }
     }
@@ -526,7 +537,7 @@
         
         state.components.forEach(comp => {
             if (comp.type !== 'INPUT') {
-                comp.value = null; // 未計算状態
+                comp.value = null;
             }
         });
 
@@ -555,34 +566,28 @@
     
     // --- 各コンポーネントの値の計算 ---
     function calculateComponentValue(comp) {
-        // 入力値を取得
         const inputs = getComponentInputs(comp);
         
-        // 入力が null (未接続・未計算) の場合の処理
         switch (comp.type) {
             case 'AND':
-                // 入力が一つでも null なら、出力も null
                 if (inputs['in-0'] === null || inputs['in-1'] === null) {
                     return null;
                 }
                 return (inputs['in-0'] === 1 && inputs['in-1'] === 1) ? 1 : 0;
             
             case 'OR':
-                // 入力が一つでも null なら、出力も null
                 if (inputs['in-0'] === null || inputs['in-1'] === null) {
                     return null;
                 }
                 return (inputs['in-0'] === 1 || inputs['in-1'] === 1) ? 1 : 0;
             
             case 'NOT':
-                // 入力が null なら、出力も null
                 if (inputs['in-0'] === null) {
                     return null;
                 }
                 return (inputs['in-0'] === 1) ? 0 : 1;
             
             case 'OUTPUT':
-                // 入力が null なら、出力も null (0ではない)
                 if (inputs['in-0'] === null) {
                     return null;
                 }
@@ -614,13 +619,10 @@
 
     // --- シミュレーション結果をDOMに反映 ---
     function updateDOM() {
-        // コンポーネント (OUTPUT) のON/OFF
         state.components.forEach(comp => {
             if (comp.type === 'OUTPUT') {
-                // comp.value が 1 の時だけ 'on' になる (null や 0 では 'on' にならない)
                 comp.element.classList.toggle('on', comp.value === 1);
             }
-            // INPUT以外の全てのコンポーネントのラベルに値を表示（デバッグ・確認用）
             const label = comp.element.querySelector('.label');
             if (comp.type !== 'INPUT' && label) {
                 const displayValue = comp.value === null ? '?' : comp.value;
@@ -628,10 +630,8 @@
             }
         });
 
-        // ワイヤーのON/OFF
         state.wires.forEach(wire => {
             const sourceComponent = findComponent(wire.fromId);
-            // 接続元の value が 1 の時だけ 'on' になる
             if (sourceComponent && sourceComponent.value === 1) {
                 wire.element.classList.add('on');
             } else {
