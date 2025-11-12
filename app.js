@@ -123,33 +123,43 @@
         e.preventDefault();
         const coords = getCoords(e);
         const target = e.target;
+        
+        // === 変更点: クリック対象のコンポーネントを正しく取得 ===
+        const targetComponent = target.closest('.component');
+        const targetTerminal = target.closest('.terminal');
 
         // ツールに応じた処理
         switch (state.currentTool) {
             case 'POINTER':
-                if (target.classList.contains('component')) {
-                    // コンポーネントのドラッグ開始
-                    startDrag(target, coords);
-                } else if (target.dataset.type === 'INPUT') {
-                    // INPUTのトグル
-                    toggleInput(target);
+                if (targetTerminal) {
+                    // 端子をクリックしてもドラッグしない (結線ツールと誤認しないように)
+                    return;
+                }
+                if (targetComponent) {
+                    if (targetComponent.dataset.type === 'INPUT') {
+                        // INPUTのトグル
+                        toggleInput(targetComponent);
+                    } else {
+                        // コンポーネントのドラッグ開始
+                        startDrag(targetComponent, coords);
+                    }
                 }
                 break;
             
             case 'WIRE':
-                if (target.classList.contains('terminal')) {
+                if (targetTerminal) {
                     // 結線開始
-                    startWire(target);
+                    startWire(targetTerminal);
                 }
                 break;
 
             case 'DELETE':
-                if (target.classList.contains('component')) {
-                    // コンポーネント削除
-                    deleteComponent(target.dataset.id);
-                } else if (target.classList.contains('terminal')) {
+                if (targetTerminal) {
                     // 端子に接続されているワイヤーを削除
-                    deleteWiresConnectedTo(target);
+                    deleteWiresConnectedTo(targetTerminal);
+                } else if (targetComponent) {
+                    // コンポーネント削除
+                    deleteComponent(targetComponent.dataset.id);
                 }
                 break;
 
@@ -206,10 +216,19 @@
 
         // 結線終了
         if (state.wireDrag) {
-            const target = e.target;
-            if (target && target.classList.contains('terminal')) {
+            // === 変更点: イベント終了時のターゲットを正しく取得 ===
+            // mouseup/touchendではe.targetが期待通りに動作しないことがある
+            // 代わりに、その瞬間のポインタ位置にある要素をチェックする
+            const coords = getCoords(e);
+            const endTarget = document.elementFromPoint(
+                coords.x + state.canvasOffset.left, 
+                coords.y + state.canvasOffset.top
+            );
+            const endTerminal = endTarget ? endTarget.closest('.terminal') : null;
+
+            if (endTerminal) {
                 // 端子の上で終了した場合、ワイヤーを作成
-                createWire(target);
+                createWire(endTerminal);
             }
             
             // 仮線を削除
@@ -296,7 +315,9 @@
         if (component && component.type === 'INPUT') {
             component.value = (component.value === 0) ? 1 : 0; // 0と1をトグル
             element.classList.toggle('on', component.value === 1);
-            element.querySelector('.label').textContent = `INPUT: ${component.value}`;
+            
+            // === 変更点: ラベルのテキストは変更しない ===
+            // element.querySelector('.label').textContent = `INPUT: ${component.value}`; // この行を削除
             
             // シミュレーション実行
             simulate();
@@ -327,7 +348,9 @@
         const wire = findWire(id);
         if (wire) {
             // DOMから削除
-            if (wire.element) wireLayer.removeChild(wire.element);
+            if (wire.element && wire.element.parentNode) { // 存在確認
+                wireLayer.removeChild(wire.element);
+            }
             // state.wiresから削除
             state.wires = state.wires.filter(w => w.id !== id);
         }
@@ -335,6 +358,8 @@
     
     function deleteWiresConnectedTo(terminalElement) {
         const componentElement = terminalElement.closest('.component');
+        if (!componentElement) return; // コンポーネントが見つからない場合は終了
+        
         const compId = parseInt(componentElement.dataset.id);
         const terminalId = terminalElement.dataset.terminalId;
 
@@ -354,6 +379,8 @@
     // --- 結線開始 ---
     function startWire(terminalElement) {
         const componentElement = terminalElement.closest('.component');
+        if (!componentElement) return;
+        
         const fromId = parseInt(componentElement.dataset.id);
         const fromTerminal = terminalElement.dataset.terminalId;
         
@@ -377,6 +404,8 @@
     // --- 結線作成 ---
     function createWire(toTerminalElement) {
         const componentElement = toTerminalElement.closest('.component');
+        if (!componentElement) return;
+
         const toId = parseInt(componentElement.dataset.id);
         const toTerminal = toTerminalElement.dataset.terminalId;
         
