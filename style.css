@@ -1,0 +1,259 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #f4f4f4;
+}
+
+#palette {
+    width: 180px;
+    background-color: #333;
+    color: white;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+#palette button {
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+    background-color: #555;
+    color: white;
+    text-align: left;
+    transition: background-color 0.2s;
+    border-radius: 4px;
+}
+
+#palette button:hover:not(.active) {
+    background-color: #777;
+}
+
+#palette button.active {
+    background-color: #007bff;
+}
+
+#canvas-container {
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden;
+    background-image: linear-gradient(to right, grey 1px, transparent 1px),
+                      linear-gradient(to bottom, grey 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+#canvas {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+#wire-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.wire {
+    stroke: #222;
+    stroke-width: 3;
+    pointer-events: all; /* ワイヤーのクリック判定を可能にする */
+    transition: stroke 0.1s;
+}
+
+.wire.on {
+    stroke: #ff0000; /* HIGHのワイヤーの色 */
+}
+
+.wire-dragging {
+    stroke: #007bff;
+    stroke-width: 3;
+    stroke-dasharray: 5 5;
+    pointer-events: none;
+}
+
+/* --- コンポーネントの基本スタイル --- */
+.component {
+    position: absolute;
+    width: 80px;
+    height: 60px;
+    background-color: white;
+    border: 2px solid #222;
+    border-radius: 6px;
+    box-sizing: border-box;
+    cursor: grab;
+    transition: border-color 0.2s, background-color 0.2s, transform 0s; /* transformのトランジションはなし */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.component:active {
+    cursor: grabbing;
+}
+
+.component .label {
+    font-size: 10px;
+    font-weight: bold;
+    color: #222;
+    text-align: center;
+    line-height: 1;
+}
+
+/* --- ターミナルの基本スタイル (〇) --- */
+.terminal {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: #222;
+    border-radius: 50%;
+    cursor: crosshair;
+    z-index: 10;
+    border: 1px solid white;
+    box-sizing: border-box;
+}
+
+/* --- ターミナル位置の調整 --- */
+.component.AND .terminal.in-0, .component.OR .terminal.in-0 { top: 10px; left: -5px; }
+.component.AND .terminal.in-1, .component.OR .terminal.in-1 { bottom: 10px; left: -5px; }
+.component.AND .terminal.out, .component.OR .terminal.out { top: 25px; right: -5px; }
+
+.component.NOT .terminal.in-0 { top: 25px; left: -5px; }
+.component.NOT .terminal.out { top: 25px; right: -5px; }
+
+.component.INPUT .terminal.out { top: 25px; right: -5px; }
+.component.OUTPUT .terminal.in-0 { top: 25px; left: -5px; }
+
+/* --- INPUT/OUTPUT の専用スタイル --- */
+.component.INPUT { 
+    background-color: #ccc;
+    cursor: pointer;
+}
+.component.INPUT.on { 
+    background-color: #28a745; 
+    border-color: #1e7e34;
+}
+
+.component.OUTPUT {
+    background-color: #ccc;
+}
+.component.OUTPUT.on {
+    background-color: #dc3545; /* 赤色でHIGHを示す */
+    border-color: #c82333;
+}
+
+
+/* ------------------------------------- */
+/* --- 🚀 MIL/ANSI 記号のスタイル 🚀 --- */
+/* ------------------------------------- */
+
+/* --- AND回路 (長方形記号) --- */
+.component.AND {
+    width: 80px;
+    height: 60px;
+    border-radius: 6px; /* 角丸の長方形 */
+    border: 2px solid #222;
+    background-color: white;
+}
+
+/* --- 🌟 OR回路 (MIL/ANSI: 三日月型) --- */
+.component.OR {
+    width: 80px;
+    height: 60px;
+    background-color: transparent; /* 背景を透明にする */
+    border: none; /* 外枠を削除 */
+    position: relative;
+    overflow: visible; /* 疑似要素を描画できるように */
+}
+
+.component.OR::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* 基本形状: 湾曲した四辺形 */
+    /* 曲線を作成するために clip-path と border-radiusを組み合わせる */
+    /* 複雑な形状を表現するため、clip-pathを使用 */
+    clip-path: path('M 5 0 C 40 0, 75 10, 75 30 S 40 60, 5 60 C 20 50, 20 10, 5 0 Z');
+    
+    background-color: white;
+    border: 2px solid #222;
+    box-sizing: border-box;
+    z-index: 1; /* ターミナルより後ろ、ワイヤーより前 */
+}
+
+.component.OR .terminal, .component.OR .label {
+    z-index: 2; /* 形状の上に重ねる */
+}
+.component.OR .label {
+    /* ORのラベル位置を調整 */
+    position: relative;
+    top: 0px; 
+    left: 10px;
+}
+/* ORのターミナルを形状に合わせる */
+.component.OR .terminal.in-0 { top: 10px; left: 0px; }
+.component.OR .terminal.in-1 { bottom: 10px; left: 0px; }
+.component.OR .terminal.out { top: 25px; right: -5px; }
+
+/* --- NOT回路 (MIL/ANSI: 三角形) --- */
+.component.NOT {
+    width: 60px; /* サイズを調整 */
+    height: 60px;
+    background-color: transparent;
+    border: none;
+}
+
+.component.NOT::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 40px;
+    height: 40px;
+    background-color: white;
+    border: 2px solid #222;
+    box-sizing: border-box;
+    z-index: 1;
+    
+    /* 三角形を表現 */
+    clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
+    transform: translate(0px, 10px); /* 中央に配置 */
+}
+
+/* NOTの反転円 */
+.component.NOT::after {
+    content: '';
+    position: absolute;
+    top: 25px;
+    left: 40px; /* 三角形の先端に配置 */
+    width: 10px;
+    height: 10px;
+    border: 2px solid #222;
+    border-radius: 50%;
+    background-color: white;
+    z-index: 1;
+}
+
+.component.NOT .label {
+    z-index: 2;
+    position: relative;
+    top: 0px;
+    left: 25px;
+}
+
+/* NOTのターミナル位置を調整 */
+.component.NOT .terminal.in-0 { top: 25px; left: -5px; }
+.component.NOT .terminal.out { top: 25px; right: -5px; }
