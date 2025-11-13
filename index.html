@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logic Gate Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React, ReactDOM, and Babel from CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
   }
 }
 </script>
@@ -19,6 +22,578 @@
 </head>
 <body class="overflow-hidden">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+
+    <script type="text/babel">
+(() => {
+    const { useState, useCallback, useEffect, useRef, useMemo, StrictMode } = React;
+
+    // --- From constants.ts ---
+    const PALETTE_WIDTH = 180;
+    const COMPONENT_CONFIG = {
+      INPUT: { width: 60, height: 50, inputs: [], outputs: [{y: 25}] },
+      OUTPUT: { width: 60, height: 60, inputs: [{y: 30}], outputs: [] },
+      AND: { width: 80, height: 50, inputs: [{y: 15}, {y: 35}], outputs: [{y: 25}] },
+      OR: { width: 80, height: 50, inputs: [{y: 15}, {y: 35}], outputs: [{y: 25}] },
+      NOT: { width: 80, height: 50, inputs: [{y: 25}], outputs: [{y: 25}] },
+    };
+
+    // --- From components/ComponentNode.tsx ---
+    const Terminal = ({ onMouseDown, onMouseUp, className, style }) => (
+        <div
+            onMouseDown={(e) => { e.stopPropagation(); onMouseDown?.(); }}
+            onMouseUp={(e) => { e.stopPropagation(); onMouseUp?.(); }}
+            className={`absolute w-4 h-4 bg-white border-2 border-gray-700 rounded-full z-30 cursor-crosshair hover:bg-blue-200 ${className}`}
+            style={style}
+        />
+    );
+
+    const ANDShape = () => (
+        <div className="absolute inset-0 bg-white border-2 border-gray-700" style={{ borderRadius: '5px 25px 25px 5px' }}></div>
+    );
+
+    const ORShape = () => (
+        <svg viewBox="0 0 82 50" className="absolute w-full h-full">
+            <path d="M 2,2 C 40,10 60,15 80,25 C 60,35 40,40 2,48 Q 35,25 2,2 Z" className="fill-white stroke-gray-700" strokeWidth="2" />
+        </svg>
+    );
+
+    const NOTShape = () => (
+        <svg viewBox="0 0 80 50" className="absolute w-full h-full overflow-visible">
+            <polygon points="5,2 65,25 5,48" className="fill-white stroke-gray-700" strokeWidth="2" />
+        </svg>
+    );
+
+    const ComponentNode = ({ component, state, workspaceRef, onMove, onToggle, onWireStart, onWireEnd, activeTool, onDelete }) => {
+        const [isDragging, setIsDragging] = useState(false);
+        const dragOffset = useRef({ x: 0, y: 0 });
+        const config = COMPONENT_CONFIG[component.type];
+
+        const handleMouseDown = useCallback((e) => {
+            if (activeTool !== 'select') return;
+
+            setIsDragging(true);
+            dragOffset.current = {
+                x: e.clientX - component.position.x - PALETTE_WIDTH,
+                y: e.clientY - component.position.y,
+            };
+
+            const handleMouseMove = (moveEvent) => {
+                if (workspaceRef.current) {
+                    const newX = moveEvent.clientX - dragOffset.current.x - PALETTE_WIDTH;
+                    const newY = moveEvent.clientY - dragOffset.current.y;
+                    onMove(component.id, { x: newX, y: newY });
+                }
+            };
+
+            const handleMouseUp = () => {
+                setIsDragging(false);
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('mouseup', handleMouseUp);
+            };
+
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }, [component.id, component.position, onMove, workspaceRef, activeTool]);
+
+        const handleClick = () => {
+            if (activeTool === 'delete') {
+                onDelete(component.id);
+                return;
+            }
+            if (component.type === 'INPUT') {
+                onToggle(component.id);
+            }
+        };
+        
+        const getTerminalPosition = (type, index) => {
+            const terminals = type === 'in' ? config.inputs : config.outputs;
+            const terminal = terminals[index];
+            let x;
+            if (type === 'out') {
+                 x = component.position.x + (component.type === 'NOT' ? 73 : config.width);
+            } else {
+                 x = component.position.x;
+            }
+            const y = component.position.y + terminal.y;
+            return { x, y };
+        };
+        
+        const baseClasses = "absolute flex items-center justify-center font-bold text-sm select-none z-20";
+        let typeClasses = "";
+        let children = <div className="z-10">{component.type}</div>;
+
+        switch (component.type) {
+            case 'INPUT':
+                typeClasses = `cursor-pointer ${state ? 'bg-red-500 text-white shadow-lg shadow-red-500/50' : 'bg-gray-300 text-gray-800'} border-2 border-gray-700 rounded-md`;
+                children = <div className="z-10">{state ? 'ON' : 'OFF'}</div>;
+                break;
+            case 'OUTPUT':
+                typeClasses = `rounded-full ${state ? 'bg-red-500 shadow-lg shadow-red-500/50' : 'bg-gray-300'} border-2 border-gray-700`;
+                children = <div className="z-10">OUT</div>;
+                break;
+            case 'AND':
+            case 'OR':
+            case 'NOT':
+                 typeClasses = "bg-transparent";
+                 if(component.type === 'NOT') {
+                    children = <div className="z-10" style={{position: 'absolute', left: '15px'}}>NOT</div>
+                 }
+                 break;
+        }
+
+        const renderShape = () => {
+            switch (component.type) {
+                case 'AND': return <ANDShape />;
+                case 'OR': return <ORShape />;
+                case 'NOT': return <NOTShape />;
+                default: return null;
+            }
+        }
+
+        const getCursor = () => {
+            if (activeTool === 'delete') return 'crosshair';
+            if (isDragging) return 'grabbing';
+            if (component.type === 'INPUT') return 'pointer';
+            return 'grab';
+        }
+
+        return (
+            <div
+                className={`${baseClasses} ${typeClasses}`}
+                style={{
+                    left: component.position.x,
+                    top: component.position.y,
+                    width: config.width,
+                    height: config.height,
+                    cursor: getCursor(),
+                }}
+                onMouseDown={handleMouseDown}
+                onClick={handleClick}
+            >
+                {renderShape()}
+                {children}
+
+                {config.inputs.map((terminal, i) => (
+                    <Terminal 
+                        key={`in-${i}`}
+                        onMouseUp={() => onWireEnd(component.id, i)}
+                        className="left-[-10px]"
+                        style={{ top: `${terminal.y}px`, transform: 'translateY(-50%)' }} 
+                    />
+                ))}
+
+                {config.outputs.map((terminal, i) => (
+                    <Terminal
+                        key={`out-${i}`}
+                        onMouseDown={() => {
+                            if (activeTool === 'select') {
+                                onWireStart(component.id, getTerminalPosition('out', i))
+                            }
+                        }}
+                        className={component.type === 'NOT' ? 'left-[65px]' : 'right-[-10px]'}
+                        style={{ top: `${terminal.y}px`, transform: 'translateY(-50%)' }}
+                    />
+                ))}
+            </div>
+        );
+    };
+
+    // --- From components/Palette.tsx ---
+    const componentTypes = ['INPUT', 'OUTPUT', 'AND', 'OR', 'NOT'];
+
+    const ToolButton = ({ label, isActive, onClick }) => (
+        <button
+            onClick={onClick}
+            className={`block w-full text-left p-3 mb-2 rounded-md transition-colors ${
+                isActive ? 'bg-blue-600 font-bold' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+        >
+            {label}
+        </button>
+    );
+
+    const Palette = ({ onSelectComponentType, pendingComponentType, onReset, activeTool, onSelectTool }) => {
+        return (
+            <aside className="fixed top-0 left-0 w-[180px] h-full bg-gray-800 text-white p-3 box-border z-50 flex flex-col">
+                <div>
+                    <h2 className="text-xl font-bold mb-2 text-center border-b border-gray-600 pb-2">Tools</h2>
+                    <ToolButton label="Select/Move" isActive={activeTool === 'select' && !pendingComponentType} onClick={() => onSelectTool('select')} />
+                    <ToolButton label="Delete" isActive={activeTool === 'delete'} onClick={() => onSelectTool('delete')} />
+                </div>
+                <div className="flex-grow mt-4">
+                    <h2 className="text-xl font-bold mb-2 text-center border-b border-gray-600 pb-2">Gates</h2>
+                    {componentTypes.map(type => (
+                        <button
+                            key={type}
+                            onClick={() => onSelectComponentType(type)}
+                            className={`block w-full text-left p-3 mb-2 rounded-md transition-colors ${
+                                pendingComponentType === type
+                                    ? 'bg-blue-600 font-bold'
+                                    : 'bg-gray-700 hover:bg-gray-600'
+                            }`}
+                        >
+                            {type}
+                        </button>
+                    ))}
+                </div>
+                <button
+                    onClick={onReset}
+                    className="block w-full p-3 bg-red-700 hover:bg-red-600 rounded-md transition-colors"
+                >
+                    Reset
+                </button>
+            </aside>
+        );
+    };
+    
+    // --- From components/Workspace.tsx ---
+    const WirePath = ({ d, state, activeTool, onClick }) => {
+        const isDeleteMode = activeTool === 'delete';
+        return (
+          <path
+            d={d}
+            onClick={isDeleteMode ? onClick : undefined}
+            className={`fill-none transition-all 
+                ${state ? 'stroke-red-500 stroke-[4]' : 'stroke-gray-700 stroke-[3]'}
+                ${isDeleteMode ? 'pointer-events-stroke cursor-pointer hover:stroke-red-700' : ''}
+            `}
+          />
+        );
+    }
+
+    const Workspace = ({
+        components,
+        wires,
+        componentStates,
+        wireStates,
+        onComponentMove,
+        onToggleInput,
+        onWireStart,
+        onWireMove,
+        onWireEnd,
+        draggingWire,
+        activeTool,
+        onDeleteComponent,
+        onDeleteWire,
+        onAddComponent,
+        pendingComponentType,
+    }) => {
+        const workspaceRef = useRef(null);
+
+        const getTerminalPosition = (component, type, index) => {
+            const config = COMPONENT_CONFIG[component.type];
+            const terminals = type === 'in' ? config.inputs : config.outputs;
+            const terminal = terminals[index];
+            let x;
+            if (type === 'out') {
+                // For NOT gate, the terminal is the bubble itself, position needs adjustment
+                if (component.type === 'NOT') {
+                    x = component.position.x + 73; 
+                } else {
+                    x = component.position.x + config.width;
+                }
+            } else {
+                 x = component.position.x;
+            }
+            const y = component.position.y + terminal.y;
+            return { x, y };
+        };
+
+        const wirePaths = useMemo(() => {
+            return wires.map(wire => {
+                const fromComponent = components.find(c => c.id === wire.fromComponentId);
+                const toComponent = components.find(c => c.id === wire.toComponentId);
+                if (!fromComponent || !toComponent) return null;
+
+                const startPos = getTerminalPosition(fromComponent, 'out', 0);
+                const endPos = getTerminalPosition(toComponent, 'in', wire.toTerminalIndex);
+                
+                const d = `M ${startPos.x} ${startPos.y} C ${startPos.x + 50} ${startPos.y}, ${endPos.x - 50} ${endPos.y}, ${endPos.x} ${endPos.y}`;
+                return <WirePath key={wire.id} d={d} state={wireStates[wire.id] || false} activeTool={activeTool} onClick={() => onDeleteWire(wire.id)}/>;
+            }).filter(Boolean);
+        }, [wires, components, wireStates, activeTool, onDeleteWire]);
+
+        const handleMouseMove = (e) => {
+            if (draggingWire && workspaceRef.current) {
+                const rect = workspaceRef.current.getBoundingClientRect();
+                onWireMove({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                });
+            }
+        };
+
+        const handleMouseUp = () => {
+            if (draggingWire) {
+                onWireEnd(null, null);
+            }
+        };
+
+        const handleWorkspaceClick = useCallback((e) => {
+            if (pendingComponentType && workspaceRef.current) {
+                const rect = workspaceRef.current.getBoundingClientRect();
+                onAddComponent(pendingComponentType, {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                });
+            }
+        }, [pendingComponentType, onAddComponent]);
+        
+        const getWorkspaceCursor = () => {
+            if (pendingComponentType) return 'copy';
+            if (activeTool === 'delete') return 'crosshair';
+            return 'default';
+        };
+
+        return (
+            <main
+                ref={workspaceRef}
+                className={`absolute top-0 right-0 bottom-0 bg-white`}
+                style={{ 
+                    left: `${PALETTE_WIDTH}px`,
+                    width: `calc(100% - ${PALETTE_WIDTH}px)`,
+                    backgroundImage: 'linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)',
+                    backgroundSize: '20px 20px',
+                    cursor: getWorkspaceCursor(),
+                }}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onClick={handleWorkspaceClick}
+            >
+                <svg className={`absolute top-0 left-0 w-full h-full z-10 ${activeTool !== 'delete' ? 'pointer-events-none' : ''}`}>
+                    {wirePaths}
+                    {draggingWire && (
+                        <path
+                            d={`M ${draggingWire.startPos.x} ${draggingWire.startPos.y} L ${draggingWire.currentPos.x} ${draggingWire.currentPos.y}`}
+                            className="stroke-blue-500 stroke-[3] stroke-dasharray-[5,5]"
+                        />
+                    )}
+                </svg>
+
+                {components.map(component => (
+                    <ComponentNode
+                        key={component.id}
+                        component={component}
+                        state={componentStates[component.id] || false}
+                        workspaceRef={workspaceRef}
+                        onMove={onComponentMove}
+                        onToggle={onToggleInput}
+                        onWireStart={onWireStart}
+                        onWireEnd={onWireEnd}
+                        activeTool={activeTool}
+                        onDelete={onDeleteComponent}
+                    />
+                ))}
+            </main>
+        );
+    };
+
+    // --- From App.tsx ---
+    const initialComponents = [
+      { id: 'input_1', type: 'INPUT', position: { x: 100, y: 100 }, state: false },
+      { id: 'input_2', type: 'INPUT', position: { x: 100, y: 200 }, state: false },
+      { id: 'and_1', type: 'AND', position: { x: 250, y: 150 }, state: false },
+      { id: 'output_1', type: 'OUTPUT', position: { x: 450, y: 145 }, state: false },
+    ];
+
+    const initialWires = [
+      { id: 'wire_1', fromComponentId: 'input_1', toComponentId: 'and_1', toTerminalIndex: 0 },
+      { id: 'wire_2', fromComponentId: 'input_2', toComponentId: 'and_1', toTerminalIndex: 1 },
+      { id: 'wire_3', fromComponentId: 'and_1', toComponentId: 'output_1', toTerminalIndex: 0 },
+    ];
+
+    const initialComponentStates = Object.fromEntries(initialComponents.map(c => [c.id, c.state]));
+
+
+    const App = () => {
+        const [components, setComponents] = useState(initialComponents);
+        const [wires, setWires] = useState(initialWires);
+        const [componentStates, setComponentStates] = useState(initialComponentStates);
+        const [wireStates, setWireStates] = useState({});
+        const [draggingWire, setDraggingWire] = useState(null);
+        const [activeTool, setActiveTool] = useState('select');
+        const [pendingComponentType, setPendingComponentType] = useState(null);
+
+        const handleSelectComponentType = useCallback((type) => {
+            setPendingComponentType(prev => prev === type ? null : type);
+            if (type) {
+                setActiveTool('select');
+            }
+        }, []);
+
+        const handleAddComponent = useCallback((type, position) => {
+            const newComponent = {
+                id: `comp_${Date.now()}`,
+                type,
+                position,
+                state: false,
+            };
+            setComponents(prev => [...prev, newComponent]);
+            setComponentStates(prev => ({ ...prev, [newComponent.id]: false }));
+            setPendingComponentType(null);
+        }, []);
+
+        const handleReset = useCallback(() => {
+            setComponents([]);
+            setWires([]);
+            setComponentStates({});
+            setWireStates({});
+            setPendingComponentType(null);
+        }, []);
+
+        const handleDeleteComponent = useCallback((id) => {
+            setComponents(prev => prev.filter(c => c.id !== id));
+            setWires(prev => prev.filter(w => w.fromComponentId !== id && w.toComponentId !== id));
+        }, []);
+
+        const handleDeleteWire = useCallback((id) => {
+            setWires(prev => prev.filter(w => w.id !== id));
+        }, []);
+
+        const handleComponentMove = useCallback((id, position) => {
+            setComponents(prev => prev.map(c => c.id === id ? { ...c, position } : c));
+        }, []);
+        
+        const handleSelectTool = useCallback((tool) => {
+            setActiveTool(tool);
+            setPendingComponentType(null);
+        }, []);
+
+        const handleToggleInput = useCallback((id) => {
+            setComponentStates(prev => ({...prev, [id]: !prev[id]}));
+        }, []);
+
+        const handleWireStart = useCallback((startComponentId, startPos) => {
+            setDraggingWire({ startComponentId, startPos, currentPos: startPos });
+        }, []);
+        
+        const handleWireMove = useCallback((currentPos) => {
+            if (draggingWire) {
+                setDraggingWire(prev => prev ? { ...prev, currentPos } : null);
+            }
+        }, [draggingWire]);
+
+        const handleWireEnd = useCallback((endComponentId, endTerminalIndex) => {
+            if (draggingWire && endComponentId !== null && endTerminalIndex !== null) {
+                const fromId = draggingWire.startComponentId;
+                const toId = endComponentId;
+
+                if (fromId === toId) {
+                    setDraggingWire(null);
+                    return;
+                }
+
+                const isOccupied = wires.some(w => w.toComponentId === toId && w.toTerminalIndex === endTerminalIndex);
+                if(isOccupied) {
+                    setDraggingWire(null);
+                    return;
+                }
+
+                const newWire = {
+                    id: `wire_${Date.now()}`,
+                    fromComponentId: fromId,
+                    toComponentId: toId,
+                    toTerminalIndex: endTerminalIndex,
+                };
+                setWires(prev => [...prev, newWire]);
+            }
+            setDraggingWire(null);
+        }, [draggingWire, wires]);
+        
+        useEffect(() => {
+            const newComponentStates = { ...componentStates };
+            const newWireStates = {};
+
+            const maxIterations = components.length + 5;
+
+            for (let i = 0; i < maxIterations; i++) {
+                let changed = false;
+                components.forEach(comp => {
+                    if (comp.type === 'INPUT') return;
+
+                    const getInputState = (terminalIndex) => {
+                        const wire = wires.find(w => w.toComponentId === comp.id && w.toTerminalIndex === terminalIndex);
+                        if (!wire) return false;
+                        return newComponentStates[wire.fromComponentId] || false;
+                    };
+
+                    let newState = false;
+                    switch (comp.type) {
+                        case 'AND':
+                            newState = getInputState(0) && getInputState(1);
+                            break;
+                        case 'OR':
+                            newState = getInputState(0) || getInputState(1);
+                            break;
+                        case 'NOT':
+                            newState = !getInputState(0);
+                            break;
+                        case 'OUTPUT':
+                            newState = getInputState(0);
+                            break;
+                    }
+                    
+                    if (newComponentStates[comp.id] !== newState) {
+                        newComponentStates[comp.id] = newState;
+                        changed = true;
+                    }
+                });
+                if (!changed && i > 0) break;
+            }
+            
+            wires.forEach(wire => {
+                newWireStates[wire.id] = newComponentStates[wire.fromComponentId] || false;
+            });
+
+            if (JSON.stringify(componentStates) !== JSON.stringify(newComponentStates)) {
+                setComponentStates(newComponentStates);
+            }
+            if (JSON.stringify(wireStates) !== JSON.stringify(newWireStates)) {
+                setWireStates(newWireStates);
+            }
+        }, [components, wires, JSON.stringify(Object.fromEntries(Object.entries(componentStates).filter(([key]) => components.find(c => c.id === key && c.type === 'INPUT'))))]);
+
+        return (
+            <div className="w-screen h-screen bg-gray-100 font-sans select-none">
+                <Palette 
+                  onSelectComponentType={handleSelectComponentType}
+                  pendingComponentType={pendingComponentType}
+                  onReset={handleReset} 
+                  activeTool={activeTool}
+                  onSelectTool={handleSelectTool}
+                />
+                <Workspace
+                    components={components}
+                    wires={wires}
+                    componentStates={componentStates}
+                    wireStates={wireStates}
+                    onComponentMove={handleComponentMove}
+                    onToggleInput={handleToggleInput}
+                    onWireStart={handleWireStart}
+                    onWireMove={handleWireMove}
+                    onWireEnd={handleWireEnd}
+                    draggingWire={draggingWire}
+                    activeTool={activeTool}
+                    onDeleteComponent={handleDeleteComponent}
+                    onDeleteWire={handleDeleteWire}
+                    onAddComponent={handleAddComponent}
+                    pendingComponentType={pendingComponentType}
+                />
+            </div>
+        );
+    };
+    
+    // --- From index.tsx ---
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
+
+})();
+    </script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>
