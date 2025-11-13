@@ -1,0 +1,5 @@
+{
+  "name": "Logic Gate Simulator",
+  "description": "A web-based application that allows users to build and simulate digital logic circuits. Drag and drop gates, connect them with wires, and toggle inputs to see the logic propagate in real-time.",
+  "requestFramePermissions": []
+}
