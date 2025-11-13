@@ -120,18 +120,16 @@ body {
     z-index: 10;
     border: 1px solid white;
     box-sizing: border-box;
+    /* ターミナルそのものの位置はコンポーネントの枠線基準で決めるため、
+       結線が外枠の〇に繋がるように調整 */
 }
 
 /* --- ターミナル位置の調整（デフォルト） --- */
-.component.AND .terminal.in-0, .component.OR .terminal.in-0 { top: 10px; left: -5px; }
-.component.AND .terminal.in-1, .component.OR .terminal.in-1 { bottom: 10px; left: -5px; }
-.component.AND .terminal.out, .component.OR .terminal.out { top: 25px; right: -5px; }
+/* AND, INPUT, OUTPUT */
+.component.AND .terminal.in-0, .component.INPUT .terminal.in-0, .component.OUTPUT .terminal.in-0 { top: 10px; left: -5px; }
+.component.AND .terminal.in-1 { bottom: 10px; left: -5px; }
+.component.AND .terminal.out, .component.INPUT .terminal.out, .component.OUTPUT .terminal.out { top: 25px; right: -5px; }
 
-.component.NOT .terminal.in-0 { top: 25px; left: -5px; }
-.component.NOT .terminal.out { top: 25px; right: -5px; }
-
-.component.INPUT .terminal.out { top: 25px; right: -5px; }
-.component.OUTPUT .terminal.in-0 { top: 25px; left: -5px; }
 
 /* --- INPUT/OUTPUT の専用スタイル --- */
 .component.INPUT { 
@@ -160,96 +158,114 @@ body {
 .component.AND {
     width: 80px;
     height: 60px;
-    border-radius: 6px; /* 角丸の長方形 */
+    border-radius: 6px;
     border: 2px solid #222;
     background-color: white;
 }
-/* ANDのターミナルを形状に合わせる */
-.component.AND .terminal.in-0 { top: 10px; left: -5px; }
-.component.AND .terminal.in-1 { bottom: 10px; left: -5px; }
-.component.AND .terminal.out { top: 25px; right: -5px; }
 
 
 /* --- 🌟 OR回路 (MIL/ANSI: 三日月型) --- */
 .component.OR {
-    width: 80px;
+    /* 形状を疑似要素で描画するため、親要素の枠と背景を削除 */
+    width: 90px; /* サイズを拡大し、形状を収める */
     height: 60px;
-    background-color: transparent; /* 背景を透明にする */
-    border: none; /* 外枠を削除 */
+    background-color: transparent; 
+    border: none; 
     position: relative;
-    overflow: hidden; /* はみ出しを隠す */
+    overflow: visible; /* 形状全体を表示 */
+    justify-content: flex-start; /* ラベルを左に寄せる */
 }
 
+/* ORの本体形状 */
 .component.OR::before {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    left: 10px; /* ターミナルの位置を考慮して右にずらす */
+    width: 80px;
+    height: 60px;
     background-color: white;
-    border: 2px solid #222;
     box-sizing: border-box;
-    z-index: 1; /* ターミナルより後ろ、ワイヤーより前 */
+    z-index: 1;
 
     /* 三日月形状の作成 */
-    border-top-left-radius: 60px 30px; /* 左上を大きく丸める */
-    border-bottom-left-radius: 60px 30px; /* 左下を大きく丸める */
-    border-top-right-radius: 10px; /* 右上は少しだけ丸める */
-    border-bottom-right-radius: 10px; /* 右下も少しだけ丸める */
+    border: 2px solid #222;
+    border-radius: 50% / 30px; /* 楕円形の角丸で湾曲を表現 */
     
-    /* 右側を切り落とす */
-    transform: translateX(-15px); /* 全体を左にずらして、右側をコンポーネントの領域外に出す */
-    clip-path: inset(0 0 0 15px); /* 右側15pxを切り取る */
+    /* 左側を切り落として三日月に */
+    clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%); 
+    /* clip-pathを再調整し、より滑らかな形状を目指す。
+       複雑なため、border-radiusとbox-shadowで輪郭を調整する方法を採用 */
+       
+    /* 湾曲した左の輪郭をbox-shadowで表現し、本体は直線的な右側のみの長方形にする */
+    border: none;
+    background: transparent;
+    box-shadow: 2px 0 0 0 #222 inset; /* 左側に太い線 */
+    border-radius: 50%;
     
-    /* より湾曲させるために、左側の丸みを調整 */
-    border-left: none; /* 左側のボーダーをなくし、疑似要素で作成する */
+    /* 完全に三日月型にするため、clip-pathを再々調整 */
+    border: 2px solid #222;
+    border-radius: 60px 40px 40px 60px / 30px 30px 30px 30px; /* 左側を強く丸め、右側を緩やかに */
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 50%); /* 基本の矩形を維持 */
+
+    /* 意図したANSI記号の複雑な湾曲を再現 */
+    border: none;
+    background-color: white;
+    box-shadow: 0 0 0 2px #222 inset;
+    border-radius: 100% 0% 0% 100% / 50% 0% 0% 50%;
+    transform: scaleX(0.5); /* 楕円を横に潰す */
+    left: 10px; 
+    
+    /* シンプルな三日月 */
+    border: 2px solid #222;
+    background: white;
+    border-radius: 60px 40px 40px 60px / 30px 30px 30px 30px;
+    left: 10px;
 }
-/* ORゲートの湾曲した左側ボーダーを疑似要素で追加 */
+/* ORゲートの左側の曲線を描画 */
 .component.OR::after {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border-left: 2px solid #222;
-    border-top-left-radius: 60px 30px;
-    border-bottom-left-radius: 60px 30px;
-    transform: translateX(-15px);
-    clip-path: inset(0 85px 0 0); /* 左側のボーダーのみ表示 */
-    z-index: 1;
-}
-
-
-.component.OR .terminal, .component.OR .label {
-    z-index: 2; /* 形状の上に重ねる */
-}
-.component.OR .label {
-    position: relative;
-    top: 0px; 
     left: 10px;
+    width: 80px;
+    height: 60px;
+    border: 2px solid #222;
+    border-radius: 60px 40px 40px 60px / 30px 30px 30px 30px;
+    background: transparent;
+    z-index: 1;
+    /* 左側のみを表示 */
+    clip-path: polygon(0% 0%, 15% 0%, 15% 100%, 0% 100%);
 }
-/* ORのターミナルを形状に合わせる */
-.component.OR .terminal.in-0 { top: 10px; left: 0px; }
-.component.OR .terminal.in-1 { bottom: 10px; left: 0px; }
+
+.component.OR .label {
+    z-index: 2;
+    position: relative;
+    left: 20px; /* 形状の中心へ寄せる */
+}
+
+/* ターミナルを形状に合わせる */
+/* コンポーネントの左端（left: 0）に合わせる */
+.component.OR .terminal.in-0 { top: 10px; left: -5px; }
+.component.OR .terminal.in-1 { bottom: 10px; left: -5px; }
 .component.OR .terminal.out { top: 25px; right: -5px; }
 
 
 /* --- 🌟 NOT回路 (MIL/ANSI: 三角形) --- */
 .component.NOT {
-    width: 70px; /* サイズを調整 */
+    width: 70px; 
     height: 60px;
     background-color: transparent;
     border: none;
-    justify-content: flex-start; /* 左寄せにする */
+    justify-content: flex-start;
 }
 
+/* NOTの本体形状 (三角形) */
 .component.NOT::before {
     content: '';
     position: absolute;
-    top: 10px; /* 中央に配置 */
-    left: 5px; /* 左端から少し中央へ寄せる */
+    top: 10px; 
+    left: 5px; /* 中央に寄せる */
     width: 40px; 
     height: 40px;
     background-color: white;
@@ -259,15 +275,20 @@ body {
     
     /* 三角形を表現 */
     clip-path: polygon(0% 0%, 100% 50%, 0% 100%);
-    /* transform: translate(0px, 10px); /* これが左寄りすぎた原因の一つ */
+    border: none; /* clip-pathで囲まれた輪郭のみが有効になる */
+
+    /* 枠線を追加するため、要素を重ねる */
+    border-top: 2px solid #222;
+    border-bottom: 2px solid #222;
+    border-left: 2px solid #222;
 }
 
 /* NOTの反転円 */
 .component.NOT::after {
     content: '';
     position: absolute;
-    top: 25px; /* 三角形の先端と合わせる */
-    left: 45px; /* 三角形の先端のX座標に合わせる (left + width) */
+    top: 25px; 
+    left: 45px; 
     width: 10px;
     height: 10px;
     border: 2px solid #222;
@@ -279,8 +300,7 @@ body {
 .component.NOT .label {
     z-index: 2;
     position: relative;
-    top: 0px;
-    left: 25px; /* ラベル位置を調整 */
+    left: 25px;
 }
 
 /* NOTのターミナル位置を調整 */
