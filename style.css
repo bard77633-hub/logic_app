@@ -234,13 +234,13 @@ body, html {
     height: 0;
     background-color: transparent;
     border-style: solid;
-    border-width: 25px 0 25px 40px; /* 三角形 */
+    border-width: 25px 0 25px 60px; /* 三角形 */
     border-color: transparent transparent transparent #ccc; /* 変更: 三角を薄い色に */
     border-radius: 0;
 }
 .component.NOT .label {
     position: absolute;
-    left: -35px; /* 変更: 三角の中央に配置 */
+    left: -30px; /* 変更: 三角の中央に配置 */
     top: -9px;  /* 変更: 三角の中央に配置 */
     color: #333; /* 変更: 黒文字に */
     z-index: 1;
