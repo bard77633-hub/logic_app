@@ -240,7 +240,7 @@ body, html {
 }
 .component.NOT .label {
     position: absolute;
-    left: -30px; /* 変更: 三角の中央に配置 */
+    left: 0px; /* 変更: 三角の中央に配置 */
     top: -9px;  /* 変更: 三角の中央に配置 */
     color: #333; /* 変更: 黒文字に */
     z-index: 1;
